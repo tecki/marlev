@@ -1,12 +1,13 @@
 ﻿"""
-====================================
+=====================================
 Least-Squares Fitting (:mod:`levmar`)
-====================================
+=====================================
 
 This module contains a class-based Levenberg-Marquardt fitter
 :class:`Fit` and a function :func:`leastsq` which is a function-based
 interface to the same functionality.  """
-from numpy import (array, diagonal, dot, empty, eye, finfo, maximum, meshgrid,
+from numpy import (
+    array, diagonal, dot, empty, eye, finfo, linspace, maximum, meshgrid,
     sqrt, zeros_like, diag as npdiag, float32, float64)
 from itertools import count
 from scipy.linalg import solve_triangular, qr, qr_multiply, norm
@@ -422,7 +423,7 @@ class Fit:
                 paru = min(paru, par)
             par = max(parl, par + parc)
 
-    def plot(self, x, f, good):
+    def plot_intermediate(self, x, f, good):
         """ plot intermediate results
 
         This method, which does nothing in its default implemenation,
@@ -591,9 +592,9 @@ class Fit:
                     self.fvec = testf
                     fnorm = testfnorm
                     xnorm = norm(self.scale * x)
-                    self.plot(x, self.fvec, True)
+                    self.plot_intermediate(x, self.fvec, True)
                 else:
-                    self.plot(testx, testf, False)
+                    self.plot_intermediate(testx, testf, False)
 
                 # test for convergence
                 c1 = (abs(actual_reduction) <= ftol and
@@ -693,7 +694,7 @@ def minimize(fun, x0, args=(), method="maquardt-levenberg", jac=None,
             def jacobian(self, x, fvec, ret):
                 return jac(x)
 
-        def plot(self, x, f, good):
+        def plot_intermediate(self, x, f, good):
             if callback is not None:
                 callback(x)
             if retall:
@@ -823,6 +824,49 @@ class Function(Fit, dict):
         self.fitparameters, start = zip(*parameters.items())
         ret = Fit.fit(self, start)
         return dict(zip(self.fitparameters, ret))
+
+    def plot(self, **kwargs):
+        """Plot the last data together with its fit
+
+        Keyword arguments are handed over to the underlying
+        :func:`~matplotlib.pyplot.plot` function. Arguments prefixed with
+        ``fit_`` are only handed over to the plotted fit, vice versa for a
+        ``data_`` prefix.
+
+        as an example, a Gaussian fit through data `x` and `y` may be done
+        like ::
+
+            gaussian.fit(x, y, width=3, height=4, position=3)
+            gaussian.plot(data_color='g', fit_color='r')
+
+        which would result in a plot similar to the following:
+
+        .. plot::
+
+            from numpy import arange, exp, random
+            from levmarpy.levmar import fitfunction
+
+            @fitfunction(width=1, height=1, position=0)
+            def gaussian(x, width, height, position):
+                return height * exp(-((x - position) / width) ** 2 / 2)
+
+            x = arange(30) - 10
+            y = 5 * exp(-0.1 * (x - 3) ** 2) + random.standard_normal(30)
+            gaussian.fit(x, y, width=3, height=4, position=3)
+            gaussian.plot(data_color='g', fit_color='r')
+        """
+        from matplotlib.pyplot import plot
+
+        n = max(101, 2 * len(self.datax))
+        fx = linspace(min(self.datax), max(self.datax), 101)
+
+        fargs = {k[4:] if k.startswith("fit_") else k: v
+                 for k, v in kwargs.items() if not k.startswith("data_")}
+        plot(fx, self(fx), '-', **fargs)
+        fargs = {k[5:] if k.startswith("data_") else k: v
+                 for k, v in kwargs.items() if not k.startswith("fit_")}
+        plot(self.datax, self.datay, '.', **fargs)
+
 
 def fitfunction(**defaults):
     """Decorator to turn a function into a fitting function

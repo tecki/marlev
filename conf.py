@@ -1,6 +1,7 @@
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'matplotlib.sphinxext.plot_directive',
 ]
 
 templates_path = ['_templates']
@@ -24,5 +25,6 @@ htmlhelp_basename = 'levmarpy'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable', None),
     }
