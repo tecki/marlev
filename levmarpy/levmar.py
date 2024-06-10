@@ -4,7 +4,7 @@ Least-Squares Fitting (:mod:`levmar`)
 ====================================
 
 This module contains a class-based Levenberg-Marquardt fitter
-`Fit` and a function `leastsq` which is a function-based
+:class:`Fit` and a function :func:`leastsq` which is a function-based
 interface to the same functionality.  """
 from numpy import (array, diagonal, dot, empty, eye, finfo, maximum, meshgrid,
     sqrt, zeros_like, diag as npdiag, float32, float64)
@@ -44,14 +44,14 @@ class InvalidParameter(Exception):
         Exception.__init__(self)
         self.number = number
 
-class Fit(object):
+class Fit:
     """ Least-Squares Fitting using Levenberg-Marquardt
 
     This class contains methods to minimize the sum of the squares 
     of `M` nonlinear functions with `N` parameters by a modification of the
     Levenberg-Marquardt algorithm. The user must overwrite the method
-    `func` that calculates the functions, and, optionally, the method
-    `jacobian` to calculate its partial derivatives.
+    :meth:`func` that calculates the functions, and, optionally, the method
+    :meth:`jacobian` to calculate its partial derivatives.
 
     Parameters
     ----------
@@ -74,7 +74,7 @@ class Fit(object):
         the scale of the changes of the parameters in each iteration 
     exitcode : int
         the reason the fitting has stopped. Possible values:
-        (see also the parameter names of the method `fit`)
+        (see also the parameter names of the method :meth:`fit`)
 
         :0:
             an unknown (typically user) error has occurred
@@ -116,7 +116,7 @@ class Fit(object):
     def fjac(self, j, x, f0):
         r""" Calculate the derivative of the function by one parameter.
 
-        This method, which is used by `jacobian`, calculates the
+        This method, which is used by :meth:`jacobian`, calculates the
         derivative
 
         .. math::
@@ -124,7 +124,7 @@ class Fit(object):
 
         by a forward-difference approximation.
 
-        The user should overwrite this method (or `jacobian`) if another
+        The user should overwrite this method (or :meth:`jacobian`) if another
         way to calculate the derivative of the function is appropriate.
 
         Parameters
@@ -160,13 +160,14 @@ class Fit(object):
     def jacobian(self, x, fvec, ret):
         r""" Calculate the Jacobian matrix
 
-        The Jacobian matrix is a[i, j] with ::
+        The Jacobian matrix is a[i, j] with
 
+        .. math::
             a[i, j] = \left.\frac{\partial f_i}{\partial x_j}\right|_x
 
-        This default implementation uses `fjac` to calculate the
+        This default implementation uses :meth:`fjac` to calculate the
         derivatives. The user should overwrite this method (or
-        `fjac`) if another method to calculate the Jacobian is
+        :meth:`fjac`) if another method to calculate the Jacobian is
         more appropriate.
 
         Parameters
@@ -733,10 +734,10 @@ def minimize(fun, x0, args=(), method="maquardt-levenberg", jac=None,
     return ret, info
 
 class Function(Fit, dict):
-    """Convenience class to fit to python functions
+    """Convenience class to fit to Python functions
 
-    This class is a specialization of the `Fit` class,
-    if one wants to fit to a simple python function. A possibly
+    This class is a specialization of the :class:`Fit` class,
+    if one wants to fit to a simple Python function. A possibly
     even simpler way to do so is the decorator `fitfunction`.
 
     An example::
@@ -814,7 +815,7 @@ class Function(Fit, dict):
         """Fit to data `x` and `y`.
 
         This function performs the actual fit, by minimizing
-        ``|f(x) - y|``, varying the parameters to the user-supplied
+        :math:`|f(x) - y|`, varying the parameters to the user-supplied
         function `f`. """
 
         self.datax = x
@@ -827,7 +828,7 @@ def fitfunction(**defaults):
     """Decorator to turn a function into a fitting function
 
     This decorator turns a normal function into a fittable function,
-    which is an object of the class `Function`. As parameters to this
+    which is an object of the class :class:`Function`. As parameters to this
     decorator you give the default values for the fitted parameters.
     An example::
 
@@ -846,7 +847,7 @@ def fitfunction(**defaults):
         >>> gaussian["width"] = 2 
 
     The whole point of this function then is to be able to fit to
-    data, e.g.  by ::
+    data, e.g. by ::
 
         >>> x = np.arange(10)
         >>> y = np.array([0.1, 1.5, 2.7, 3.2, 4.8, 5.3, 4.4, 3.6, 2.9, 1.0])
@@ -862,10 +863,10 @@ def fitfunction(**defaults):
     return wrapper
 
 def leastsq(func, x0, args=(), Dfun=None, full_output=0, col_deriv=0, **kwargs):
-    """ Function equivalent to the class `Fit`
+    """ Function equivalent to the class :class:`Fit`
 
     This function is supposed to be a drop-in replacement for 
-    `scipy.optimize.leastsq`. See the documentation there.
+    :func:`scipy.optimize.leastsq`. See the documentation there.
     """
     class MyFit(Fit):
         def func(self, x):
