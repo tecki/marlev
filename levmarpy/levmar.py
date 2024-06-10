@@ -277,7 +277,7 @@ class Fit:
         s[:, :-1] = r
         s[:, -1] = qtb
         # Eliminate the diagonal matrix D using a givens rotation.
-        s = qrsolv(s, diag[ipvt])
+        qrsolv(s, diag[ipvt])
         condition = s.diagonal() == 0
         if condition.any():
             nsing = condition.nonzero()[0][0]
