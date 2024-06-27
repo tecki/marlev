@@ -21,7 +21,8 @@ exec('from numpy import exp, arctan, cos, sin, pi', globs)
 
 
 @pytest.mark.parametrize('path', p.glob('*.dat'), ids=lambda p: p.name)
-def test_fit(path):
+@pytest.mark.parametrize('column', [0, 1])
+def test_fit(path, column):
     fit = NistFit()
 
     with path.open() as fin:
@@ -54,15 +55,14 @@ def test_fit(path):
 
         params = {}
 
-        for no in [0, 1]:
-            for ll in lines[start:stop-5]:
-                name, _, *args= ll.split()
-                params[name] = tuple(float(a) for a in args)
-            ad = array(ld)
-            fit.parameters = params
-            fit.datax = ad[:, 1]
-            fit.datay = ad[:, 0]
-            fit.fit(array([p[no] for p in params.values()]), iterations=1000)
+        for ll in lines[start:stop-5]:
+            name, _, *args= ll.split()
+            params[name] = tuple(float(a) for a in args)
+        ad = array(ld)
+        fit.parameters = params
+        fit.datax = ad[:, 1]
+        fit.datay = ad[:, 0]
+        fit.fit(array([p[column] for p in params.values()]), iterations=1000)
 
-            for res, (_, _, ref, dev) in zip(fit.params, params.values()):
-                assert res == pytest.approx(ref, abs=dev)
+        for res, (_, _, ref, dev) in zip(fit.params, params.values()):
+            assert res == pytest.approx(ref, abs=dev)
