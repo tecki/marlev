@@ -1,5 +1,5 @@
 Reference Documentation
 -----------------------
 
-.. automodule:: levmarpy.levmar
+.. automodule:: marlev.marlev
    :members:

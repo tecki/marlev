@@ -3,7 +3,7 @@ from numpy.random import normal
 
 from pytest import approx
 
-from .levmar import leastsq
+from .marlev import leastsq
 
 
 def test_gaussian():

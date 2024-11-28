@@ -9,7 +9,7 @@ numfig = True
 source_suffix = '.rst'
 master_doc = 'index'
 
-project = 'levmarpy'
+project = 'marlev'
 copyright = '2024, European XFEL GmbH'
 author = 'Martin Teichmann'
 
@@ -21,7 +21,7 @@ pygments_style = 'sphinx'
 todo_include_todos = False
 html_theme = 'alabaster'
 html_static_path = ['build/static']
-htmlhelp_basename = 'levmarpy'
+htmlhelp_basename = 'marlev'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),

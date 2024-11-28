@@ -1,6 +1,6 @@
 ﻿"""
 =====================================
-Least-Squares Fitting (:mod:`levmar`)
+Least-Squares Fitting (:mod:`marlev`)
 =====================================
 
 This module contains a class-based Levenberg-Marquardt fitter
@@ -844,7 +844,7 @@ class Function(Fit, dict):
         .. plot::
 
             from numpy import arange, exp, random
-            from levmarpy.levmar import fitfunction
+            from marlev.marlev import fitfunction
 
             @fitfunction(width=1, height=1, position=0)
             def gaussian(x, width, height, position):

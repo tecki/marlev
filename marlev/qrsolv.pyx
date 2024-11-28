@@ -1,6 +1,6 @@
 """
 This is an internal module only, containing the inner loops
-for levmarpy.
+for marlev.
 """
 cdef extern from "alloca.h":
     void *alloca(int) nogil

@@ -8,4 +8,4 @@ Python. It is closely following the classical
 .. toctree::
    :maxdepth: 2
 
-   levmarpy/levmarpy.rst
+   marlev/marlev.rst

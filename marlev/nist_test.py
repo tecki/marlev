@@ -2,7 +2,7 @@ from numpy import array, errstate
 import pytest
 from pathlib import Path
 
-from .levmar import Fit, InvalidParameter
+from .marlev import Fit, InvalidParameter
 
 p = Path(__file__).parent / 'nist'
 
