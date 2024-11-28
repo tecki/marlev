@@ -39,7 +39,7 @@ class InvalidParameter(Exception):
     number : int
         number is the number of the parameter, or 
         a list of numbers of parameters, which are erroneous.
-        Set to None (the default) if no specific parameter is a problem.
+        Set to ``None`` (the default) if no specific parameter is a problem.
     """
     def __init__(self, number=None):
         Exception.__init__(self)

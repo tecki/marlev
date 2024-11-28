@@ -1,5 +1,10 @@
+import sys
+
+sys.path.insert(0, __file__.rsplit('/', 1)[0])
+
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'matplotlib.sphinxext.plot_directive',
 ]
