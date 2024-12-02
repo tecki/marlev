@@ -1,0 +1,7 @@
+[project]
+name = "marlev"
+version = "0.1"
+authors = [
+    {name = "Martin Teichmann", email = "martin.teichmann@xfel.eu"},
+]
+description = "A Levenberg-Marquardt type fitting library"
