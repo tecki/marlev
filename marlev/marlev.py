@@ -26,11 +26,36 @@ from numpy import (
     sqrt, zeros_like, diag as npdiag, float32, float64)
 from itertools import count
 from scipy.linalg import solve_triangular, qr, qr_multiply, norm
-from .qrsolv import qrsolv
 import functools
 
 __all__ = ["Fit", "FitError", "InvalidParameter", "leastsq",
     "Function", "fitfunction"]
+
+try:
+    from ._qrsolv import qrsolv
+except ImportError:
+    def qrsolv(s, diag):
+        for j in range(len(diag)):
+            if diag[j] == 0:
+                continue
+            ta = zeros_like(s[0, j:])
+            ta[0] = diag[j]
+            for k in range(j, len(diag)):
+                if ta[0] == 0:
+                    ta = ta[1:]
+                    continue
+                if abs(s[k, k]) > abs(ta[0]):
+                    tan = ta[0] / s[k, k]
+                    cos = 1 / sqrt(1 + tan * tan)
+                    sin = cos * tan
+                else:
+                    cotan = s[k, k] / ta[0]
+                    sin = 1 / sqrt(1 + cotan * cotan)
+                    cos = sin * cotan
+                tmp = -sin * s[k, k:] + cos * ta
+                s[k, k:] = cos * s[k, k:] + sin * ta
+                ta = tmp[1:]
+
 
 class FitError(Exception):
     """ The error raised while fitting

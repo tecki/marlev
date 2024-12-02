@@ -49,20 +49,22 @@ def qrsolv(cython.floating[:, :] s, cython.floating[:] diag):
         ta = <cython.floating *> alloca((N + 1) * sizeof(cython.floating))
 
         for 0 <= j < N:
-            if diag[j] != 0:
-                memset(ta, 0, (N + 1) * sizeof(cython.floating))
-                ta[j] = diag[j]
-                for j <= k < N:
-                    if ta[k] != 0:
-                        if fabs(s[k, k]) > fabs(ta[k]):
-                            tan = ta[k] / s[k, k]
-                            cos = 1 / sqrt(1 + tan * tan)
-                            sin = cos * tan
-                        else:
-                            cotan = s[k, k] / ta[k]
-                            sin = 1 / sqrt(1 + cotan * cotan)
-                            cos = sin * cotan
-                        for k <= l <= N:
-                            tmp = s[k, l]
-                            s[k, l] = cos * tmp + sin * ta[l]
-                            ta[l] = -sin * tmp + cos * ta[l]
+            if diag[j] == 0:
+                continue
+            memset(ta, 0, (N + 1) * sizeof(cython.floating))
+            ta[j] = diag[j]
+            for j <= k < N:
+                if ta[k] == 0:
+                    continue
+                if fabs(s[k, k]) > fabs(ta[k]):
+                    tan = ta[k] / s[k, k]
+                    cos = 1 / sqrt(1 + tan * tan)
+                    sin = cos * tan
+                else:
+                    cotan = s[k, k] / ta[k]
+                    sin = 1 / sqrt(1 + cotan * cotan)
+                    cos = sin * cotan
+                for k <= l <= N:
+                    tmp = s[k, l]
+                    s[k, l] = cos * tmp + sin * ta[l]
+                    ta[l] = -sin * tmp + cos * ta[l]
