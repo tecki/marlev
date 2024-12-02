@@ -22,7 +22,7 @@ This module contains a class-based Levenberg-Marquardt fitter
 :class:`Fit` and a function :func:`leastsq` which is a function-based
 interface to the same functionality.  """
 from numpy import (
-    array, diagonal, dot, empty, eye, finfo, linspace, maximum, meshgrid,
+    array, diagonal, empty, eye, finfo, linspace, maximum, meshgrid,
     sqrt, zeros_like, diag as npdiag, float32, float64)
 from itertools import count
 from scipy.linalg import solve_triangular, qr, qr_multiply, norm
@@ -288,8 +288,6 @@ class Fit:
 
               P.T (A.T A + D D) P = S.T S.
 
-        `S` is computed within `_qrsolv` and may be of separate interest.
-
         Parameters
         ----------
         r : ndarray, `N` by `N`
@@ -319,11 +317,7 @@ class Fit:
         s[:, -1] = qtb
         # Eliminate the diagonal matrix D using a givens rotation.
         qrsolv(s, diag[ipvt])
-        condition = s.diagonal() == 0
-        if condition.any():
-            nsing = condition.nonzero()[0][0]
-        else:
-            nsing = len(ipvt)
+        nsing = s.diagonal().nonzero()[0][-1] + 1
         x = zeros_like(qtb)
         x[ipvt[:nsing]] = solve_triangular(s[:nsing, :nsing], s[:, -1])
         return x, s[:, :-1]
@@ -401,11 +395,7 @@ class Fit:
 
         # Compute and store in x the Gauss-Newton direction. If the
         # jacobian is rank-deficient, obtain a least squares solution.
-        condition = diagonal(r) == 0
-        if condition.any():
-            nsing = condition.nonzero()[0][0]
-        else:
-            nsing = r.shape[1]
+        nsing = r.diagonal().nonzero()[0][-1] + 1
         x = zeros_like(qtb)
         x[ipvt[:nsing]] = solve_triangular(r[:nsing, :nsing], qtb[:nsing])
 
@@ -425,15 +415,14 @@ class Fit:
                 (diag ** 2 * x)[ipvt] / dxnorm, trans=1) ** 2).sum()
 
         # Calculate an upper bound, paru, for the zero of the function.
-        gnorm = norm(dot(qtb, r) / diag[ipvt])
+        gnorm = norm((qtb @ r) / diag[ipvt])
         paru = gnorm / delta
         if paru == 0:
             paru = dwarf / min(delta, 0.1)
 
         # If the input par lies outside of the interval (parl, paru),
         # set par to the closer endpoint.
-        par = max(par, parl)
-        par = min(par, paru)
+        par = min(max(par, parl), paru)
         if par == 0:
             par = gnorm / dxnorm 
 
@@ -543,6 +532,7 @@ class Fit:
         self.eps = epsfcn
         self.running = True
         self.exitcode = 0
+        self.message = "an unknown (typically user) error has occurred"
         fjac = empty((len(self.fvec), len(x)),
                      dtype=self.fvec.dtype, order="F")
 
@@ -566,8 +556,11 @@ class Fit:
             fjacnorm[fjacnorm == 0] = -1
 
             gnorm = 0 if fnorm == 0 else (
-                abs(dot(r.T, qtf) / fnorm) / fjacnorm[ipvt]).max()
+                abs((r.T @ qtf) / fnorm) / fjacnorm[ipvt]).max()
             if gnorm <= gtol:
+                self.message = "the cosine of the angle between function " \
+                    "value and any column of the Jacobian is at most `gtol` " \
+                    "in absolute value."
                 self.exitcode = 4
                 return x
 
@@ -603,7 +596,7 @@ class Fit:
                 actual_reduction = -1
                 if 0.1 * testfnorm < fnorm:
                     actual_reduction = 1 - (testfnorm / fnorm) ** 2
-                temp1 = norm(dot(r, p[ipvt])) / fnorm
+                temp1 = norm(r @ p[ipvt]) / fnorm
                 temp2 = sqrt(par) * pnorm / fnorm
                 predicted_reduction = temp1 ** 2 + 2 * temp2 ** 2
                 directional_deriv = -(temp1 ** 2 + temp2 ** 2)
@@ -640,6 +633,17 @@ class Fit:
                 c1 = (abs(actual_reduction) <= ftol and
                       predicted_reduction <= ftol and ratio <= 2)
                 c2 = delta <= (xtol * xnorm)
+                if c1 and c2:
+                    self.message = "both actual and predicted relative " \
+                        "reductions in the sum of squares are at most " \
+                        "`ftol`, and the relative error between two " \
+                        "consecutive iterates is at most `xtol`"
+                elif c1:
+                    self.message = "both actual and predicted relative " \
+                        "reductions in the sum of squares are at most `ftol`."
+                elif c2:
+                    self.message = "relative error between two consecutive " \
+                        "iterates is at most `xtol`"
                 self.exitcode = 2 * c2 + c1
                 if c1 or c2 or not self.running:
                     return x
@@ -647,25 +651,29 @@ class Fit:
                 # tests for termination and stringent tolerances.
                 if gnorm < epsmch:
                     self.exitcode = 8
-                    raise FitError(8, "gtol=%f is too small, func(x) is " 
-                        "orthogonal to the columns of the Jacobian to " 
-                        "machine precision." % gtol)
+                    self.message = f"gtol={gtol} is too small, func(x) is " \
+                        "orthogonal to the columns of the Jacobian to " \
+                        "machine precision."
+                    raise FitError(8, self.message)
                 if delta < epsmch * xnorm:
                     self.exitcode = 7
-                    raise FitError(7, "xtol=%f is too small, no further " 
-                        "improvement in the approximate solution is possible."                          % xtol)
+                    self.message = f"xtol={xtol} is too small, no further " \
+                        "improvement in the approximate solution is possible."
+                    raise FitError(7, self.message)
                 if (abs(actual_reduction) < epsmch and
                         predicted_reduction < epsmch and 0.5 * ratio < 1):
                     self.exitcode = 6
-                    raise FitError(6, "ftol=%f is too small, no further " 
-                        "reduction in the sum of squares is possible." % ftol)
+                    self.message = f"ftol={ftol} is too small, no further " \
+                        "reduction in the sum of squares is possible."
+                    raise FitError(6, self.message)
                 if maxfev is not None and self.nfev > maxfev:
                     self.exitcode = 5
-                    raise FitError(5,
-                        "Number of function evaluations has reached %d." %
-                        self.nfev)
+                    self.message = "Number of function evaluations has " \
+                                   f"reached {self.nfev}."
+                    raise FitError(5, self.message)
         self.exitcode = 9
-        raise FitError(9, "Number of iterations has reached %d." % iterations)
+        self.message = f"Number of iterations has reached {iterations}."
+        raise FitError(9, self.message)
 
     def covar(self, x, eps=0):
         """ calculate the covariance matrix of the solution
@@ -687,15 +695,12 @@ class Fit:
             self.eps = finfo(f.dtype).eps
         fdjac = self.jacobian(x, f, empty((len(f), len(x)), dtype=f.dtype))
         r, jpvt = qr(fdjac, pivoting=True, mode="r")
-        condition = abs(r.diagonal()) <= r[0, 0] * eps
-        if condition.any():
-            nsing = condition.nonzero()[0][0]
-        else:
-            nsing = len(jpvt)
+        condition = abs(r.diagonal()) > r[0, 0] * eps
+        nsing = condition.nonzero()[0][-1] + 1
         r = r[:nsing, :nsing]
         ri = eye(r.shape[0], dtype=r.dtype)
         ri = solve_triangular(r, ri.T, overwrite_b=True)
-        cov = dot(ri.T, ri)
+        cov = ri.T @ ri
         ret = zeros_like(fdjac)
         j1, j2 = meshgrid(jpvt[:nsing], jpvt[:nsing])
         ret[j1, j2] = cov
@@ -747,20 +752,9 @@ def minimize(fun, x0, args=(), method="maquardt-levenberg", jac=None,
     except FitError as e:
         mesg = e.message
         success = False
+        ret = None
     else:
-        mesg = [
-            "an unknown (typically user) error has occurred",
-            "both actual and predicted relative reductions "
-                "in the sum of squares are at most `ftol`.",
-            "relative error between two consecutive "
-                "iterates is at most `xtol`",
-            "the actual and predicted relative reductions "
-                "in the sum of squares are at most `ftol`, "
-                "and relative error between two consecutive "
-                "iterates is at most `xtol`",
-            "the cosine of the angle between function value and any "
-                "column of the Jacobian is at most `gtol` in absolute value."
-            ][fit.exitcode]
+        mesg = fit.message
     info = {
             "solution": ret,
             "success": success,
@@ -966,21 +960,10 @@ def leastsq(func, x0, args=(), Dfun=None, full_output=0, col_deriv=0, **kwargs):
     try:
         ret = fit.fit(x0, **kwargs)
     except FitError as e:
+        ret = None
         mesg = e.message
     else:
-        mesg = [
-            "an unknown (typically user) error has occurred",
-            "both actual and predicted relative reductions "
-                "in the sum of squares are at most `ftol`.",
-            "relative error between two consecutive "
-                "iterates is at most `xtol`",
-            "the actual and predicted relative reductions "
-                "in the sum of squares are at most `ftol`, "
-                "and relative error between two consecutive "
-                "iterates is at most `xtol`",
-            "the cosine of the angle between function value and any "
-                "column of the Jacobian is at most `gtol` in absolute value."
-            ][fit.exitcode]
+        mesg = fit.message
     if full_output:
         return ret, fit.covar(ret), {"nfev": fit.nfev,
                 "fvec": fit.fvec}, mesg, fit.exitcode
