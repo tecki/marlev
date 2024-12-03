@@ -65,7 +65,7 @@ class TestGaussian(unittest.TestCase, Fit):
         pp = self.fit(p)
         self.complain = False
         assert_almost_equal(pp, [1, 2, 3, 4, 0], decimal=2)
-        assert_almost_equal(self.error(), [0.10, 0.33, 0.66, 0.59, 0],
+        assert_almost_equal(self.error(sigma=1), [0.10, 0.33, 0.66, 0.59, 0],
             decimal=1)
         
 

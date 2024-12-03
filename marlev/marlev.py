@@ -23,8 +23,8 @@ This module contains a class-based Levenberg-Marquardt fitter
 interface to the same functionality.  """
 from functools import wraps
 from numpy import (
-    array, diagonal, empty, eye, finfo, linspace, maximum, meshgrid,
-    sqrt, zeros_like, diag as npdiag, float32, float64)
+    arange, array, diagonal, empty, finfo, linspace, maximum, sqrt, zeros,
+    zeros_like)
 from itertools import count
 from scipy.linalg import solve_triangular, qr, qr_multiply, norm
 import functools
@@ -252,6 +252,10 @@ class Fit:
     @calculator
     def values(self):
         return self.func(self.parameters())
+
+    @calculator
+    def fnorm(self):
+        return norm(self.values())
 
     @calculator
     def qtf(self):
@@ -561,7 +565,6 @@ class Fit:
             order of epsfcn. """
         laststatus = self.status = Status(1. * array(x))
         self.nfev = 1
-        fnorm = norm(self.values())
         par = 0
         epsmch = finfo(self.status.parameters.dtype).eps
         if epsfcn is None:
@@ -589,8 +592,7 @@ class Fit:
                     delta = factor 
             fjacnorm[fjacnorm == 0] = -1
 
-            gnorm = 0 if fnorm == 0 else (
-                abs((r.T @ qtf) / fnorm) / fjacnorm[ipvt]).max()
+            gnorm = (abs((r.T @ qtf) / self.fnorm()) / fjacnorm[ipvt]).max()
             if gnorm <= gtol:
                 self.message = "the cosine of the angle between function " \
                     "value and any column of the Jacobian is at most `gtol` " \
@@ -626,12 +628,12 @@ class Fit:
                     delta = min(delta, pnorm)
 
                 # calculate the metrics for convergence
-                testfnorm = norm(testf)
                 actual_reduction = -1
-                if 0.1 * testfnorm < fnorm:
-                    actual_reduction = 1 - (testfnorm / fnorm) ** 2
-                temp1 = norm(r @ p[ipvt]) / fnorm
-                temp2 = sqrt(par) * pnorm / fnorm
+                if 0.1 * self.fnorm() < laststatus.fnorm:
+                    actual_reduction = \
+                        1 - (self.fnorm() / laststatus.fnorm) ** 2
+                temp1 = norm(r @ p[ipvt]) / laststatus.fnorm
+                temp2 = sqrt(par) * pnorm / laststatus.fnorm
                 predicted_reduction = temp1 ** 2 + 2 * temp2 ** 2
                 directional_deriv = -(temp1 ** 2 + temp2 ** 2)
                 ratio = (actual_reduction / predicted_reduction
@@ -644,7 +646,7 @@ class Fit:
                     else:
                         temp = 0.5 * directional_deriv / (
                             directional_deriv + 0.5 * actual_reduction)
-                    if 0.1 * testfnorm >= fnorm or temp < 0.1:
+                    if 0.1 * self.fnorm() >= laststatus.fnorm or temp < 0.1:
                         temp = 0.1
                     delta = temp * min(delta, 10 * pnorm)
                     par /= temp
@@ -654,7 +656,6 @@ class Fit:
 
                 # if iteration is successful, update parameters
                 if ratio >= 0.0001:
-                    fnorm = testfnorm
                     xnorm = norm(self.scale * self.status.parameters)
                     self.plot_intermediate(True)
                     laststatus = self.status
@@ -708,8 +709,7 @@ class Fit:
         self.message = f"Number of iterations has reached {iterations}."
         raise FitError(9, self.message)
 
-    @calculator
-    def covar(self):
+    def covar(self, sigma=None, eps=0):
         """ calculate the covariance matrix of the solution
 
         This method gives an estimation of the error of the fitting
@@ -724,25 +724,20 @@ class Fit:
             linear-dependent (ie, has no influence on a fitting result).
         f : vector, length M
             the function value at `p`, calculated internally if None """
-        if not hasattr(self, "eps"):
-            self.eps = finfo(f.dtype).eps
-        fdjac = self.jacobian()
-        f = self.values()
-        r = self.r()
+        if sigma is None:
+            sigma = self.fnorm() / sqrt(len(self.values())
+                                        - len(self.parameters()))
+        r = self.r() / sigma
         jpvt = self.ipvt()
-        condition = abs(r.diagonal()) > abs(r[0, 0]) * self.eps
+        condition = abs(r.diagonal()) > abs(r[0, 0]) * eps
         nsing = condition.nonzero()[0][-1] + 1
         r = r[:nsing, :nsing]
-        ri = eye(r.shape[0], dtype=r.dtype)
-        ri = solve_triangular(r, ri.T, overwrite_b=True)
-        cov = ri.T @ ri
-        ret = zeros_like(fdjac)
-        j1, j2 = meshgrid(jpvt[:nsing], jpvt[:nsing])
-        ret[j1, j2] = cov
-        return ret
+        ri = zeros((len(jpvt), nsing), dtype=r.dtype)
+        ri[jpvt[:nsing], arange(nsing)] = 1
+        ri = solve_triangular(r.T, ri.T, lower=True, overwrite_b=True)
+        return ri.T @ ri
 
-    @calculator
-    def error(self):
+    def error(self, sigma=None, eps=0):
         """ calculate the error of the fit parameters
 
         Give an estimation on the error of the fit result.
@@ -752,7 +747,7 @@ class Fit:
         err : vector, length `N`
             the estimated error for each parameter
         """
-        return sqrt(diagonal(self.covar()))
+        return sqrt(diagonal(self.covar(sigma, eps)))
 
 def minimize(fun, x0, args=(), method="maquardt-levenberg", jac=None,
              options=dict(), full_output=False, callback=None, retall=False):

@@ -8,7 +8,7 @@ p = Path(__file__).parent / 'nist'
 
 class NistFit(Fit):
     def func(self, x):
-        p = dict(zip(self.parameters.keys(), x))
+        p = dict(zip(self.extra_parameters.keys(), x))
         p['x'] = self.datax
         try:
             with errstate(all='raise'):
@@ -59,10 +59,10 @@ def test_fit(path, column):
             name, _, *args= ll.split()
             params[name] = tuple(float(a) for a in args)
         ad = array(ld)
-        fit.parameters = params
+        fit.extra_parameters = params
         fit.datax = ad[:, 1]
         fit.datay = ad[:, 0]
         fit.fit(array([p[column] for p in params.values()]), iterations=1000)
 
-        for res, (_, _, ref, dev) in zip(fit.params, params.values()):
+        for res, (_, _, ref, dev) in zip(fit.parameters(), params.values()):
             assert res == pytest.approx(ref, abs=dev)
