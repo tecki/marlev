@@ -178,6 +178,8 @@ class Fit:
             number of iterations has reached its limit
     """
 
+    data = 0
+
     def fjac(self, j):
         r""" Calculate the derivative of the function by one parameter.
 
@@ -256,7 +258,7 @@ class Fit:
 
     @calculator
     def fnorm(self):
-        return norm(self.values())
+        return norm(self.values() - self.data)
 
     @calculator
     def qtf(self):
@@ -274,7 +276,8 @@ class Fit:
         try:
             return self.status.qtf, self.status.r, self.status.ipvt
         except AttributeError:
-            ret = qr_multiply(self.jacobian(), self.values(), pivoting=True)
+            ret = qr_multiply(self.jacobian(), self.values() - self.data,
+                              pivoting=True)
             self.status.qtf, self.status.r, self.status.ipvt = ret
             return ret
 
@@ -514,8 +517,8 @@ class Fit:
             the last estimate. """
         pass
 
-    def fit(self, x, ftol=1.49012e-8, xtol=1.49012e-8, gtol=0.0, maxfev=None,
-                epsfcn=None, factor=100, diagin=None, iterations=100):
+    def fit(self, x, data=None, *, ftol=1.49012e-8, xtol=1.49012e-8, gtol=0.0,
+            maxfev=None, epsfcn=None, factor=100, diagin=None, iterations=100):
         """ The Levenberg-Marquardt algorithm
 
         This method performs the actual Levenberg-Marquardt minimization
@@ -525,6 +528,9 @@ class Fit:
         ----------
         x : vector, length N
             an initial estimate of the solution vector
+
+        data : vector
+            the function values to fit to, or 0 for a pure minimization
 
         ftol : float, >= 0, optional
             Termination occurs when both the actual and predicted
@@ -565,6 +571,8 @@ class Fit:
             assumes that the relative errors in the functions are of the
             order of epsfcn. """
         laststatus = self.status = Status(1. * array(x))
+        if data is not None:
+            self.data = data
         self.nfev = 1
         par = 0
         epsmch = finfo(self.status.parameters.dtype).eps
