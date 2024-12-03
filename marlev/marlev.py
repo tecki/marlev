@@ -21,6 +21,7 @@ Least-Squares Fitting (:mod:`marlev`)
 This module contains a class-based Levenberg-Marquardt fitter
 :class:`Fit` and a function :func:`leastsq` which is a function-based
 interface to the same functionality.  """
+from functools import wraps
 from numpy import (
     array, diagonal, empty, eye, finfo, linspace, maximum, meshgrid,
     sqrt, zeros_like, diag as npdiag, float32, float64)
@@ -84,6 +85,29 @@ class InvalidParameter(Exception):
     def __init__(self, number=None):
         Exception.__init__(self)
         self.number = number
+
+
+class Status:
+    """Cache the calculated results for a set of parameters
+
+    During fitting, we calculate a lot of data for a given set of parameters.
+    We store them in objects of this class for later use.
+    """
+    def __init__(self, x):
+        self.parameters = x
+
+
+def calculator(getter):
+    @wraps(getter)
+    def wrapper(self):
+        try:
+            return getattr(self.status, wrapper.__name__)
+        except AttributeError:
+            ret = getter(self)
+            setattr(self.status, wrapper.__name__, ret)
+            return ret
+    return wrapper
+
 
 class Fit:
     """ Least-Squares Fitting using Levenberg-Marquardt
@@ -154,7 +178,7 @@ class Fit:
             number of iterations has reached its limit
     """
 
-    def fjac(self, j, x, f0):
+    def fjac(self, j):
         r""" Calculate the derivative of the function by one parameter.
 
         This method, which is used by :meth:`jacobian`, calculates the
@@ -173,16 +197,14 @@ class Fit:
 
         j : int
             The number of the function's parameter to derive by.
-        x : vector, length `N`
-            The position to evaluate the derivative at.
-        f0 : vector, length `M`
-            The value of the function at `x`.
 
         Returns
         -------
         out : vector, length `M`
             The derivative of the function at `x` by `x[j]`.
         """
+        x = self.parameters()
+        f0 = self.values()
         tmp = x[j]
         h = sqrt(self.eps) * abs(tmp)
         if h == 0:
@@ -198,7 +220,12 @@ class Fit:
             return (f1 - f0) / (c * h)
         return zeros_like(f0)
 
-    def jacobian(self, x, fvec, ret):
+    @calculator
+    def parameters(self):
+        raise RuntimeError('this should never happen')
+
+    @calculator
+    def jacobian(self):
         r""" Calculate the Jacobian matrix
 
         The Jacobian matrix is a[i, j] with
@@ -211,24 +238,40 @@ class Fit:
         :meth:`fjac`) if another method to calculate the Jacobian is
         more appropriate.
 
-        Parameters
-        ----------
-
-        x : vector, length `N`
-            is the value the Jacobian should be evaluated at
-        fvec : vector, length `M`
-            is the function value at `x`
-        ret : matrix, `M` by `N`
-            is a pre-allocated matrix into which the Jacobian should
-            be written. It may be ignored.
-        
         Returns
         -------
         ret : matrix, `M` by `N` 
             the Jacobian at `x` """
+        fvec = self.values()
+        x = self.parameters()
+        ret = empty((len(x), len(fvec)), dtype=fvec.dtype)
         for j in range(len(x)):
-            ret[:, j] = self.fjac(j, x, fvec)
-        return ret
+            ret[j, :] = self.fjac(j)
+        return ret.T
+
+    @calculator
+    def values(self):
+        return self.func(self.parameters())
+
+    @calculator
+    def qtf(self):
+        return self.decompose()[0]
+
+    @calculator
+    def r(self):
+        return self.decompose()[1]
+
+    @calculator
+    def ipvt(self):
+        return self.decompose()[2]
+
+    def decompose(self):
+        try:
+            return self.status.qtf, self.status.r, self.status.ipvt
+        except AttributeError:
+            ret = qr_multiply(self.jacobian(), self.values(), pivoting=True)
+            self.status.qtf, self.status.r, self.status.ipvt = ret
+            return ret
 
     def func(self, x):
         """ The function to be fitted to
@@ -452,7 +495,7 @@ class Fit:
                 paru = min(paru, par)
             par = max(parl, par + parc)
 
-    def plot_intermediate(self, x, f, good):
+    def plot_intermediate(self, good):
         """ plot intermediate results
 
         This method, which does nothing in its default implemenation,
@@ -461,10 +504,6 @@ class Fit:
 
         Parameters
         ----------
-        x : vector, length `N`
-            Current estimate of the fitting algorithm
-        f : vector, length `M`
-            The function at `x`
         good : boolean
             Whether this estimation is better (True) or worse (False) than
             the last estimate. """
@@ -520,28 +559,23 @@ class Fit:
             for the forward-difference approximation. This approximation
             assumes that the relative errors in the functions are of the
             order of epsfcn. """
-        x = 1. * array(x)
-        self.params = x
+        laststatus = self.status = Status(1. * array(x))
         self.nfev = 1
-        self.fvec = self.func(x)
-        fnorm = norm(self.fvec)
+        fnorm = norm(self.values())
         par = 0
-        epsmch = finfo(x.dtype).eps
+        epsmch = finfo(self.status.parameters.dtype).eps
         if epsfcn is None:
             epsfcn = epsmch
         self.eps = epsfcn
         self.running = True
         self.exitcode = 0
         self.message = "an unknown (typically user) error has occurred"
-        fjac = empty((len(self.fvec), len(x)),
-                     dtype=self.fvec.dtype, order="F")
 
         for self.iterations in range(iterations):
-            fjac = self.jacobian(x, self.fvec, fjac)
+            fjac = self.jacobian()
             
             fjacnorm = sqrt((fjac ** 2).sum(0))
-            qtf, r, ipvt = qr_multiply(fjac, self.fvec, pivoting=True,
-                overwrite_a=True, overwrite_c=True)
+            qtf, r, ipvt = self.decompose()
 
             if self.iterations == 0:
                 if diagin is None:
@@ -562,7 +596,7 @@ class Fit:
                     "value and any column of the Jacobian is at most `gtol` " \
                     "in absolute value."
                 self.exitcode = 4
-                return x
+                return self.status.parameters
 
             if diagin is None: 
                 self.scale = maximum(self.scale, fjacnorm) 
@@ -571,11 +605,11 @@ class Fit:
                 # determine the LM parameter, and calculate function
                 # at new position. If that fails, reduce step bound
                 par, p = self._lmpar(r, qtf, ipvt, self.scale, delta, par)
-                testx = x - p
+                self.status = Status(laststatus.parameters - p)
                 pnorm = norm(self.scale * p)
                 try:
                     self.nfev += 1
-                    testf = self.func(testx)
+                    testf = self.values()
                 except InvalidParameter as error:
                     if error.number is not None:
                         self.scale[error.number] *= 2
@@ -585,7 +619,7 @@ class Fit:
                     if self.running:
                         continue
                     else:
-                        return x
+                        return self.status.parameters
 
                 # adjust the initial step bound
                 if self.iterations == 0:
@@ -620,14 +654,13 @@ class Fit:
 
                 # if iteration is successful, update parameters
                 if ratio >= 0.0001:
-                    x = testx
-                    self.params = x
-                    self.fvec = testf
                     fnorm = testfnorm
-                    xnorm = norm(self.scale * x)
-                    self.plot_intermediate(x, self.fvec, True)
+                    xnorm = norm(self.scale * self.status.parameters)
+                    self.plot_intermediate(True)
+                    laststatus = self.status
                 else:
-                    self.plot_intermediate(testx, testf, False)
+                    self.plot_intermediate(False)
+                    self.status = laststatus
 
                 # test for convergence
                 c1 = (abs(actual_reduction) <= ftol and
@@ -646,7 +679,7 @@ class Fit:
                         "iterates is at most `xtol`"
                 self.exitcode = 2 * c2 + c1
                 if c1 or c2 or not self.running:
-                    return x
+                    return self.status.parameters
 
                 # tests for termination and stringent tolerances.
                 if gnorm < epsmch:
@@ -675,7 +708,8 @@ class Fit:
         self.message = f"Number of iterations has reached {iterations}."
         raise FitError(9, self.message)
 
-    def covar(self, x, eps=0):
+    @calculator
+    def covar(self):
         """ calculate the covariance matrix of the solution
 
         This method gives an estimation of the error of the fitting
@@ -690,12 +724,13 @@ class Fit:
             linear-dependent (ie, has no influence on a fitting result).
         f : vector, length M
             the function value at `p`, calculated internally if None """
-        f = self.func(x)
         if not hasattr(self, "eps"):
             self.eps = finfo(f.dtype).eps
-        fdjac = self.jacobian(x, f, empty((len(f), len(x)), dtype=f.dtype))
-        r, jpvt = qr(fdjac, pivoting=True, mode="r")
-        condition = abs(r.diagonal()) > r[0, 0] * eps
+        fdjac = self.jacobian()
+        f = self.values()
+        r = self.r()
+        jpvt = self.ipvt()
+        condition = abs(r.diagonal()) > abs(r[0, 0]) * self.eps
         nsing = condition.nonzero()[0][-1] + 1
         r = r[:nsing, :nsing]
         ri = eye(r.shape[0], dtype=r.dtype)
@@ -706,28 +741,18 @@ class Fit:
         ret[j1, j2] = cov
         return ret
 
-    def error(self, x=None, eps=0):
+    @calculator
+    def error(self):
         """ calculate the error of the fit parameters
 
         Give an estimation on the error of the fit result.
-
-        Parameters
-        ----------
-        x : vector, length `N`, optional
-            the fit result to calculate the error at. Take the last fit
-            result if not given.
-        eps : float, optional
-            threshold below which a parameter is considered linear-dependent
-            (ie not relevant for the fit result)
 
         Returns
         -------
         err : vector, length `N`
             the estimated error for each parameter
         """
-        if x is None:
-            x = self.params
-        return sqrt(diagonal(self.covar(x, eps)))
+        return sqrt(diagonal(self.covar()))
 
 def minimize(fun, x0, args=(), method="maquardt-levenberg", jac=None,
              options=dict(), full_output=False, callback=None, retall=False):
