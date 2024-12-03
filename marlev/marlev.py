@@ -251,6 +251,7 @@ class Fit:
 
     @calculator
     def values(self):
+        self.nfev += 1
         return self.func(self.parameters())
 
     @calculator
@@ -610,8 +611,7 @@ class Fit:
                 self.status = Status(laststatus.parameters - p)
                 pnorm = norm(self.scale * p)
                 try:
-                    self.nfev += 1
-                    testf = self.values()
+                    self.values()
                 except InvalidParameter as error:
                     if error.number is not None:
                         self.scale[error.number] *= 2
