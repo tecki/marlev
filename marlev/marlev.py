@@ -276,10 +276,13 @@ class Fit:
         try:
             return self.status.qtf, self.status.r, self.status.ipvt
         except AttributeError:
-            ret = qr_multiply(self.jacobian(), self.values() - self.data,
-                              pivoting=True)
+            ret = self.do_decompose()
             self.status.qtf, self.status.r, self.status.ipvt = ret
             return ret
+
+    def do_decompose(self):
+        return qr_multiply(self.jacobian(), self.values() - self.data,
+                           pivoting=True)
 
     def func(self, x):
         """ The function to be fitted to

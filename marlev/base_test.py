@@ -1,8 +1,9 @@
 import unittest
 from numpy import array, arange, exp, linspace, empty, sqrt
-from numpy.random import standard_normal
-from numpy.testing import assert_equal, assert_almost_equal
+from numpy.random import poisson, standard_normal
+from numpy.testing import assert_equal, assert_almost_equal, assert_allclose
 from .marlev import Fit, InvalidParameter
+from .poisson import PoissonFit
 
 
 class TestGaussian(unittest.TestCase, Fit):
@@ -67,6 +68,38 @@ class TestGaussian(unittest.TestCase, Fit):
         assert_almost_equal(pp, [1, 2, 3, 4, 0], decimal=2)
         assert_almost_equal(self.error(sigma=1), [0.10, 0.33, 0.66, 0.59, 0],
             decimal=1)
+
+
+class TestPoisson(unittest.TestCase, PoissonFit):
+#class TestPoisson(unittest.TestCase, Fit):
+    def func(self, p):
+        if p[0] < 0:
+            raise InvalidParameter(0)
+        if p[1] < 0:
+            raise InvalidParameter(1)
+        if p[2] < 0:
+            raise InvalidParameter(2)
+        return p[0] + p[1] * exp(-((self.x - p[3]) / p[2]) ** 2 / 2)
+
+    def plot_intermediate(self, good):
+        from matplotlib.pylab import plot
+
+        plot(self.x, self.values(), 'g' if good else 'r')
+
+    def test_bla(self):
+        from matplotlib.pylab import plot, savefig
+
+        self.x = linspace(0, 10, 1001)
+        p0 = array([0.2, 25, 0.3, 4])
+        self.data = poisson(self.func(p0))
+        plot(self.x, self.data, 'o')
+        ptest = [0.12, 12, 0.7, 3.5]
+        plot(self.x, self.func(ptest))
+        p1 = self.fit(ptest)
+        plot(self.x, self.func(p1))
+        savefig('test.pdf')
+        assert_allclose(p0, p1, rtol=0.1)
+
         
 
 if __name__ == '__main__':
